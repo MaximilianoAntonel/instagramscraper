@@ -12,26 +12,31 @@ import os
 # —————————————————————————————————————————————
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 
-# Para producción: usar variable de entorno, para desarrollo: archivo local
-if os.getenv("GOOGLE_CREDENTIALS"):
-    # Producción - DigitalOcean
-    creds_info = json.loads(os.getenv("GOOGLE_CREDENTIALS"))
-    creds = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
-else:
-    # Desarrollo local
-    creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPES)
+# Configuración de credenciales
+try:
+    if os.getenv("GOOGLE_CREDENTIALS"):
+        # Producción - DigitalOcean
+        creds_info = json.loads(os.getenv("GOOGLE_CREDENTIALS"))
+        creds = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
+    else:
+        # Desarrollo local
+        creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPES)
+    
+    gc = gspread.authorize(creds)
+except Exception as e:
+    st.error(f"Error de autenticación: {e}")
+    st.stop()
 
-gc = gspread.authorize(creds)
+# Obtener configuración - Variables de entorno o secrets locales
+SHEET_ID = os.getenv("SHEET_ID") or st.secrets.get("SHEET_ID")
+N8N_WEBHOOK = os.getenv("N8N_WEBHOOK") or st.secrets.get("N8N_WEBHOOK")
+N8N_API_KEY = os.getenv("N8N_API_KEY") or st.secrets.get("N8N_API_KEY")
 
-# Obtener configuración de secrets o variables de entorno
-if "SHEET_ID" in st.secrets:
-    SHEET_ID = st.secrets["SHEET_ID"]
-    N8N_WEBHOOK = st.secrets["N8N_WEBHOOK"]
-    N8N_API_KEY = st.secrets["N8N_API_KEY"]
-else:
-    SHEET_ID = os.getenv("SHEET_ID")
-    N8N_WEBHOOK = os.getenv("N8N_WEBHOOK")
-    N8N_API_KEY = os.getenv("N8N_API_KEY")
+# Verificar que las variables estén configuradas
+if not all([SHEET_ID, N8N_WEBHOOK, N8N_API_KEY]):
+    st.error("❌ Variables de entorno no configured. Verifica SHEET_ID, N8N_WEBHOOK y N8N_API_KEY")
+    st.info("💡 En desarrollo local, usa el archivo .streamlit/secrets.toml")
+    st.stop()
 
 # —————————————————————————————————————————————
 # 2. Funciones auxiliares
