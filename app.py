@@ -59,38 +59,51 @@ def get_sheet_data():
 
 def send_to_n8n(username, posts):
     """Envía username y cantidad de posts a n8n webhook y retorna cuando termine."""
-    try:
-        # Headers - n8n espera X-API-KEY específicamente
-        headers = {
-            'Content-Type': 'application/json',
-            'X-API-KEY': N8N_API_KEY  # Este es el header que n8n está esperando
-        }
-        
-        payload = {
-            "username": username,
-            "posts": posts
-        }
-        
-        # Debug temporal (remover después)
-        st.write(f"🔧 Debug - Enviando a: {N8N_WEBHOOK}")
-        st.write(f"🔧 Debug - API Key: {N8N_API_KEY[:20]}...")
-        
-        response = requests.post(
-            N8N_WEBHOOK, 
-            json=payload, 
-            headers=headers,
-            timeout=300
-        )
-        
-        st.write(f"🔧 Debug - Status: {response.status_code}")
-        st.write(f"🔧 Debug - Response: {response.text[:200]}...")
-        
-        return response.status_code == 200, response.text
-        
-    except requests.exceptions.Timeout:
-        return False, "Timeout - El scraping puede estar en proceso"
-    except Exception as e:
-        return False, f"Error: {str(e)}"
+    
+    # Intentar diferentes formatos de header
+    header_formats = [
+        {'X-API-KEY': N8N_API_KEY},  # Formato 1
+        {'X-Api-Key': N8N_API_KEY},  # Formato 2  
+        {'x-api-key': N8N_API_KEY},  # Formato 3 (lowercase)
+        {'Authorization': f'Bearer {N8N_API_KEY}'},  # Formato 4
+        {'Authorization': N8N_API_KEY},  # Formato 5
+    ]
+    
+    payload = {
+        "username": username,
+        "posts": posts
+    }
+    
+    for i, auth_header in enumerate(header_formats, 1):
+        try:
+            headers = {
+                'Content-Type': 'application/json',
+                **auth_header  # Agregar el header de autenticación
+            }
+            
+            st.write(f"🔧 Intento {i} - Header: {list(auth_header.keys())[0]}")
+            
+            response = requests.post(
+                N8N_WEBHOOK, 
+                json=payload, 
+                headers=headers,
+                timeout=60  # Timeout más corto para pruebas
+            )
+            
+            st.write(f"🔧 Status: {response.status_code}")
+            st.write(f"🔧 Response: {response.text[:200]}...")
+            
+            if response.status_code == 200:
+                st.success(f"✅ ¡Éxito con formato {i}!")
+                return True, response.text
+            elif response.status_code != 403:
+                # Si no es 403, puede ser otro tipo de error
+                st.warning(f"⚠️ Código inesperado: {response.status_code}")
+                
+        except Exception as e:
+            st.error(f"❌ Error en intento {i}: {str(e)}")
+    
+    return False, "Ningún formato de autenticación funcionó"
 
 # —————————————————————————————————————————————
 # 3. Configuración de la aplicación Streamlit
