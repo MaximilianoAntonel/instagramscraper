@@ -1,0 +1,23 @@
+name: instagram-scraper
+services:
+- name: web
+  source_dir: /
+  github:
+    repo: tu-usuario/tu-repositorio
+    branch: main
+  run_command: streamlit run app.py --server.port=8080 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false
+  environment_slug: python
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  http_port: 8080
+  health_check:
+    http_path: /healthz
+  envs:
+  - key: GOOGLE_CREDENTIALS
+    value: ${GOOGLE_CREDENTIALS}
+  - key: SHEET_ID  
+    value: ${SHEET_ID}
+  - key: N8N_WEBHOOK
+    value: ${N8N_WEBHOOK}
+  - key: N8N_API_KEY
+    value: ${N8N_API_KEY}
