@@ -60,14 +60,33 @@ def get_sheet_data():
 def send_to_n8n(username, posts):
     """Envía username y cantidad de posts a n8n webhook y retorna cuando termine."""
     try:
+        # Headers - n8n espera X-API-KEY específicamente
+        headers = {
+            'Content-Type': 'application/json',
+            'X-API-KEY': N8N_API_KEY  # Este es el header que n8n está esperando
+        }
+        
         payload = {
             "username": username,
-            "posts": posts,
-            "api_key": N8N_API_KEY
+            "posts": posts
         }
-        # Suponemos que el webhook responde solo cuando termina el flujo de n8n
-        response = requests.post(N8N_WEBHOOK, json=payload, timeout=300)  # timeout alto para esperar
+        
+        # Debug temporal (remover después)
+        st.write(f"🔧 Debug - Enviando a: {N8N_WEBHOOK}")
+        st.write(f"🔧 Debug - API Key: {N8N_API_KEY[:20]}...")
+        
+        response = requests.post(
+            N8N_WEBHOOK, 
+            json=payload, 
+            headers=headers,
+            timeout=300
+        )
+        
+        st.write(f"🔧 Debug - Status: {response.status_code}")
+        st.write(f"🔧 Debug - Response: {response.text[:200]}...")
+        
         return response.status_code == 200, response.text
+        
     except requests.exceptions.Timeout:
         return False, "Timeout - El scraping puede estar en proceso"
     except Exception as e:
