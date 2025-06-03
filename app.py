@@ -69,6 +69,9 @@ def send_to_n8n(username):
 # —————————————————————————————————————————————
 # 3. Configuración de la aplicación Streamlit
 # —————————————————————————————————————————————
+# Configuración del puerto para DigitalOcean
+port = int(os.environ.get('PORT', 8501))
+
 st.set_page_config(
     page_title="Instagram Scraper",
     page_icon="📸",
