@@ -39,7 +39,7 @@ N8N_API_KEY = os.getenv("N8N_API_KEY") or st.secrets.get("N8N_API_KEY")
 
 # Verificar que las variables estén configuradas
 if not all([SHEET_ID, N8N_WEBHOOK, N8N_API_KEY]):
-    st.error("❌ Variables de entorno no configured. Verifica SHEET_ID, N8N_WEBHOOK y N8N_API_KEY")
+    st.error("❌ Variables de entorno no configuradas. Verifica SHEET_ID, N8N_WEBHOOK y N8N_API_KEY")
     st.info("💡 En desarrollo local, usa el archivo .streamlit/secrets.toml")
     st.stop()
 
@@ -57,14 +57,16 @@ def get_sheet_data():
         st.error(f"Error al obtener datos: {e}")
         return pd.DataFrame()
 
-def send_to_n8n(username):
-    """Envía username a n8n webhook"""
+def send_to_n8n(username, posts):
+    """Envía username y cantidad de posts a n8n webhook y retorna cuando termine."""
     try:
         payload = {
             "username": username,
+            "posts": posts,
             "api_key": N8N_API_KEY
         }
-        response = requests.post(N8N_WEBHOOK, json=payload, timeout=30)
+        # Suponemos que el webhook responde solo cuando termina el flujo de n8n
+        response = requests.post(N8N_WEBHOOK, json=payload, timeout=300)  # timeout alto para esperar
         return response.status_code == 200, response.text
     except requests.exceptions.Timeout:
         return False, "Timeout - El scraping puede estar en proceso"
@@ -75,93 +77,79 @@ def send_to_n8n(username):
 # 3. Configuración de la aplicación Streamlit
 # —————————————————————————————————————————————
 st.set_page_config(
-    page_title="Instagram Scraper",
+    page_title="Demo Instagram Profile Scraper",
     page_icon="📸",
     layout="wide"
 )
 
-st.title("📸 Instagram Profile Scraper")
+st.title("📸 Demo Instagram Profile Scraper")
 st.markdown("### Cliente: Tomas de la Serna")
 
 # —————————————————————————————————————————————
-# 4. Sección de input
+# 4. Sección de inputs
 # —————————————————————————————————————————————
-col1, col2 = st.columns([2, 1])
+col1, col2 = st.columns([3, 1])
 
 with col1:
-    username = st.text_input(
-        "Username de Instagram",
-        placeholder="Ejemplo: cristiano",
-        help="Ingresa solo el username, sin @ ni URL completa"
+    # Campo para múltiples usernames (hasta 5, separados por comas)
+    raw_usernames = st.text_area(
+        "Usernames de Instagram (hasta 5, separados por comas)",
+        placeholder="ej: cristiano, natgeo, nasa",
+        help="Ingresa hasta 5 usernames separados por coma, sin @ ni URL completa"
+    )
+
+    # Campo para cantidad de posts a scrapear (máximo 10)
+    num_posts = st.number_input(
+        "Cantidad de posts a scrapear (máx. 10)",
+        min_value=1,
+        max_value=10,
+        value=5,
+        help="Ingresa un número entre 1 y 10"
     )
 
 with col2:
-    st.markdown("<br>", unsafe_allow_html=True)  # Espaciado
+    st.markdown("<br><br>", unsafe_allow_html=True)  # Un poco de espacio vertical
     scrape_button = st.button("🚀 Iniciar Scraping", type="primary")
 
 # —————————————————————————————————————————————
 # 5. Procesamiento del scraping
 # —————————————————————————————————————————————
-if scrape_button and username:
-    username = username.strip().replace('@', '').replace('instagram.com/', '')
-    
-    with st.spinner(f'Scrapeando perfil de @{username}...'):
-        success, message = send_to_n8n(username)
-        
-        if success:
-            st.success(f"✅ Scraping iniciado para @{username}")
-            st.info("⏳ Los datos aparecerán en la tabla en unos momentos...")
-            time.sleep(2)
-            st.cache_data.clear()  # Limpiar cache para mostrar datos nuevos
-        else:
-            st.error(f"❌ Error en el scraping: {message}")
+if scrape_button:
+    # Parsear y limpiar lista de usernames
+    usernames_list = [
+        u.strip().replace('@', '').replace('instagram.com/', '')
+        for u in raw_usernames.split(",") if u.strip()
+    ]
+    # Validaciones
+    if not usernames_list:
+        st.warning("⚠️ Por favor ingresa al menos un username.")
+    elif len(usernames_list) > 5:
+        st.warning("⚠️ Has ingresado más de 5 usernames. Reduce la lista a un máximo de 5.")
+    else:
+        # Ejecutar scraping dentro de un spinner que durará el tiempo que tarde n8n
+        errores = []
+        with st.spinner("⏳ Ejecutando scraping en N8N..."):
+            for user in usernames_list:
+                success, message = send_to_n8n(user, int(num_posts))
+                if not success:
+                    errores.append(f"@{user}: {message}")
 
-elif scrape_button and not username:
-    st.warning("⚠️ Por favor ingresa un username")
+        # Mostrar resultado final
+        if errores:
+            st.error("❌ Ocurrieron errores durante el scraping:")
+            for err in errores:
+                st.write(f"- {err}")
+        else:
+            st.success("✅ Scraping realizado con éxito para todos los usernames.")
 
 # —————————————————————————————————————————————
-# 6. Mostrar datos existentes
+# 6. Mostrar sólo botón de descarga de CSV (sin previsualización ni refresh)
 # —————————————————————————————————————————————
 st.markdown("---")
 st.subheader("📊 Datos Scrapeados")
 
-# Botón de refresh
-if st.button("🔄 Actualizar datos"):
-    st.cache_data.clear()
-
-# Cargar y mostrar datos
 df = get_sheet_data()
-
 if not df.empty:
-    # Métricas rápidas
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric("Total Perfiles", len(df))
-    
-    with col2:
-        if 'followers' in df.columns:
-            avg_followers = df['followers'].astype(str).str.replace(',', '').astype(float).mean()
-            st.metric("Promedio Followers", f"{avg_followers:,.0f}")
-    
-    with col3:
-        if 'following' in df.columns:
-            avg_following = df['following'].astype(str).str.replace(',', '').astype(float).mean()
-            st.metric("Promedio Following", f"{avg_following:,.0f}")
-    
-    with col4:
-        if 'posts' in df.columns:
-            avg_posts = df['posts'].astype(str).str.replace(',', '').astype(float).mean()
-            st.metric("Promedio Posts", f"{avg_posts:,.0f}")
-    
-    # Tabla de datos
-    st.dataframe(
-        df,
-        use_container_width=True,
-        hide_index=True
-    )
-    
-    # Opción de descarga
     csv = df.to_csv(index=False)
     st.download_button(
         label="📥 Descargar CSV",
@@ -169,12 +157,11 @@ if not df.empty:
         file_name=f"instagram_data_{time.strftime('%Y%m%d_%H%M%S')}.csv",
         mime="text/csv"
     )
-    
 else:
-    st.info("📝 No hay datos disponibles. ¡Realiza tu primer scraping!")
+    st.info("📝 No hay datos disponibles para descargar todavía.")
 
 # —————————————————————————————————————————————
 # 7. Footer
 # —————————————————————————————————————————————
 st.markdown("---")
-st.markdown("**🔧 Instagram Scraper** - Automatización con n8n + Google Sheets")
+st.markdown("**🔧 Demo Instagram Scraper** - Automatización con n8n + Google Sheets")
