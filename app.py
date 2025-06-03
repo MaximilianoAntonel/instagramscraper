@@ -67,7 +67,26 @@ def send_to_n8n(username):
         return False, f"Error: {str(e)}"
 
 # —————————————————————————————————————————————
-# 3. Interfaz Streamlit
+# 3. Configuración de puerto para DigitalOcean
+# —————————————————————————————————————————————
+import subprocess
+import sys
+
+# Configurar puerto dinámicamente si estamos en producción
+if os.getenv("PORT"):
+    port = int(os.getenv("PORT", 8080))
+    # Solo ejecutar streamlit si no estamos ya en un proceso streamlit
+    if "streamlit" not in sys.argv[0]:
+        subprocess.run([
+            sys.executable, "-m", "streamlit", "run", __file__,
+            f"--server.port={port}",
+            "--server.address=0.0.0.0",
+            "--server.headless=true"
+        ])
+        sys.exit()
+
+# —————————————————————————————————————————————
+# 4. Interfaz Streamlit
 # —————————————————————————————————————————————
 st.set_page_config(
     page_title="Instagram Scraper",
