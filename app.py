@@ -81,7 +81,7 @@ st.set_page_config(
 )
 
 st.title("📸 Instagram Profile Scraper")
-st.markdown("### Scraping automatizado de perfiles de Instagram")
+st.markdown("### Cliente: Tomas de la Serna")
 
 # —————————————————————————————————————————————
 # 4. Sección de input
